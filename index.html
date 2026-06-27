@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beamer Tech - SMB Transaction Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px 20px;
+        }
+
+        .agent-display {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .waveform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 40px;
+            margin-bottom: 15px;
+            opacity: 0;
+        }
+
+        .waveform.active {
+            opacity: 1;
+        }
+
+        .waveform-bar {
+            width: 3px;
+            height: 10px;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 2px;
+            animation: wave 0.6s ease-in-out infinite;
+        }
+
+        .waveform-bar:nth-child(1) { animation-delay: 0s; }
+        .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+        .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+        .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+        .waveform-bar:nth-child(5) { animation-delay: 0.4s; }
+
+        @keyframes wave {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+
+        .transcript {
+            margin-bottom: 15px;
+        }
+
+        .transcript-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .transcript-text {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            min-height: 20px;
+        }
+
+        .response {
+            margin-top: 15px;
+        }
+
+        .response-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #764ba2;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .response-text {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+            min-height: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary.recording {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #dee2e6;
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .status.connected {
+            color: #28a745;
+        }
+
+        .status.recording {
+            color: #f5576c;
+            font-weight: 600;
+        }
+
+        .emoji {
+            font-size: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+
+            .agent-display {
+                padding: 15px;
+                min-height: 180px;
+            }
+
+            .btn {
+                padding: 14px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 Beamer Tech</h1>
+            <p>SMB Transaction Voice Agent</p>
+        </div>
+
+        <div class="content">
+            <div class="agent-display">
+                <div>
+                    <div class="waveform" id="waveform">
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                    </div>
+
+                    <div class="transcript">
+                        <div class="transcript-label">You said</div>
+                        <div class="transcript-text" id="userTranscript">Waiting for input...</div>
+                    </div>
+
+                    <div class="response">
+                        <div class="response-label">Agent says</div>
+                        <div class="response-text" id="agentResponse">Ready to assist</div>
+                    </div>
+                </div>
+
+                <div class="status" id="status">● Initializing...</div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" id="startBtn">
+                    <span class="emoji">🎙️</span>
+                    <span>Start Conversation</span>
+                </button>
+                <button class="btn btn-secondary" id="clearBtn">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@elevenlabs/convai@latest/dist/index.min.js"></script>
+
+<script>
+    const AGENT_ID = "agent_2801kw1vvr7nft88jmt8nmxc15mk"; // Your agent ID (already correct)
+    
+    let conversation = null;
+    let isRecording = false;
+
+    const elements = {
+        startBtn: document.getElementById("startBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        waveform: document.getElementById("waveform"),
+        userTranscript: document.getElementById("userTranscript"),
+        agentResponse: document.getElementById("agentResponse"),
+        status: document.getElementById("status")
+    };
+
+    // Initialize conversation
+    async function initializeConnection() {
+        try {
+            updateStatus("Initializing...", false);
+            
+            conversation = await ElevenLabs.ConvAI.create({
+                agentId: AGENT_ID,
+                onMessage: (message) => handleMessage(message),
+                onError: (error) => {
+                    console.error("Error:", error);
+                    updateStatus("Error", false);
+                },
+                onConnect: () => {
+                    updateStatus("Connected", true);
+                },
+                onDisconnect: () => {
+                    updateStatus("Disconnected", false);
+                    isRecording = false;
+                    updateButton();
+                }
+            });
+
+            console.log("✅ Conversation initialized");
+            updateStatus("Ready", true);
+        } catch (error) {
+            console.error("Failed to initialize:", error);
+            updateStatus("Connection failed", false);
+        }
+    }
+
+    // Handle messages from agent
+    function handleMessage(message) {
+        console.log("Message received:", message);
+
+        if (message.type === "user_transcript") {
+            elements.userTranscript.textContent = message.text || "Listening...";
+        }
+
+        if (message.type === "agent_response") {
+            elements.agentResponse.textContent = message.text || "Processing...";
+        }
+
+        if (message.type === "start_listening") {
+            updateStatus("Recording", true);
+            elements.waveform.classList.add("active");
+            isRecording = true;
+        }
+
+        if (message.type === "stop_listening") {
+            updateStatus("Connected", true);
+            elements.waveform.classList.remove("active");
+            isRecording = false;
+            updateButton();
+        }
+    }
+
+    // Start/Stop button
+    elements.startBtn.addEventListener("click", async () => {
+        if (!conversation) {
+            await initializeConnection();
+            return;
+        }
+
+        if (!isRecording) {
+            try {
+                await conversation.startSession();
+                isRecording = true;
+                updateButton();
+            } catch (error) {
+                console.error("Error starting session:", error);
+                updateStatus("Error", false);
+            }
+        } else {
+            try {
+                await conversation.endSession();
+                isRecording = false;
+                updateButton();
+            } catch (error) {
+                console.error("Error ending session:", error);
+            }
+        }
+    });
+
+    // Clear button
+    elements.clearBtn.addEventListener("click", () => {
+        elements.userTranscript.textContent = "Waiting for input...";
+        elements.agentResponse.textContent = "Ready to assist";
+    });
+
+    // Update button state
+    function updateButton() {
+        if (isRecording) {
+            elements.startBtn.textContent = "🎙️ Stop Conversation";
+            elements.startBtn.classList.add("recording");
+        } else {
+            elements.startBtn.textContent = "🎙️ Start Conversation";
+            elements.startBtn.classList.remove("recording");
+        }
+    }
+
+    // Update status display
+    function updateStatus(text, connected) {
+        elements.status.textContent = `● ${text}`;
+        if (connected) {
+            elements.status.classList.add("connected");
+            elements.status.classList.remove("recording");
+        } else if (text === "Recording") {
+            elements.status.classList.add("recording");
+            elements.status.classList.remove("connected");
+        } else {
+            elements.status.classList.remove("connected", "recording");
+        }
+    }
+
+    // Initialize on page load
+    window.addEventListener("load", () => {
+        console.log("Page loaded, ready to connect");
+        updateStatus("Ready to connect", false);
+    });
+</script>
+</body>
+</html>
