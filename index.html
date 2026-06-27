@@ -262,7 +262,7 @@
                     </div>
                 </div>
 
-                <div class="status" id="status">● Initializing...</div>
+                <div class="status" id="status">● Ready to connect</div>
             </div>
 
             <div class="controls">
@@ -275,142 +275,138 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@elevenlabs/convai@latest/dist/index.min.js"></script>
+    <!-- ElevenLabs SDK - Correct import -->
+    <script type="module">
+        import { Conversation } from "https://cdn.jsdelivr.net/npm/@elevenlabs/client@latest/dist/index.js";
 
-<script>
-    const AGENT_ID = "agent_2801kw1vvr7nft88jmt8nmxc15mk"; // Your agent ID (already correct)
-    
-    let conversation = null;
-    let isRecording = false;
+        const AGENT_ID = "agent_2801kw1vvr7nft88jmt8nmxc15mk";
+        
+        let conversation = null;
+        let isRecording = false;
 
-    const elements = {
-        startBtn: document.getElementById("startBtn"),
-        clearBtn: document.getElementById("clearBtn"),
-        waveform: document.getElementById("waveform"),
-        userTranscript: document.getElementById("userTranscript"),
-        agentResponse: document.getElementById("agentResponse"),
-        status: document.getElementById("status")
-    };
+        const elements = {
+            startBtn: document.getElementById("startBtn"),
+            clearBtn: document.getElementById("clearBtn"),
+            waveform: document.getElementById("waveform"),
+            userTranscript: document.getElementById("userTranscript"),
+            agentResponse: document.getElementById("agentResponse"),
+            status: document.getElementById("status")
+        };
 
-    // Initialize conversation
-    async function initializeConnection() {
-        try {
-            updateStatus("Initializing...", false);
-            
-            conversation = await ElevenLabs.ConvAI.create({
-                agentId: AGENT_ID,
-                onMessage: (message) => handleMessage(message),
-                onError: (error) => {
-                    console.error("Error:", error);
-                    updateStatus("Error", false);
-                },
-                onConnect: () => {
-                    updateStatus("Connected", true);
-                },
-                onDisconnect: () => {
-                    updateStatus("Disconnected", false);
+        // Start conversation
+        async function startConversation() {
+            try {
+                elements.startBtn.disabled = true;
+                updateStatus("Connecting...", false);
+
+                // Start session with public agent
+                conversation = await Conversation.startSession({
+                    agentId: AGENT_ID,
+                    onConnect: () => {
+                        console.log("✅ Connected to agent");
+                        updateStatus("Connected", true);
+                        elements.startBtn.textContent = "🎙️ End Conversation";
+                        elements.startBtn.classList.add("recording");
+                        elements.startBtn.disabled = false;
+                        isRecording = true;
+                        elements.waveform.classList.add("active");
+                    },
+                    onDisconnect: () => {
+                        console.log("❌ Disconnected from agent");
+                        updateStatus("Disconnected", false);
+                        elements.startBtn.textContent = "🎙️ Start Conversation";
+                        elements.startBtn.classList.remove("recording");
+                        elements.startBtn.disabled = false;
+                        isRecording = false;
+                        elements.waveform.classList.remove("active");
+                    },
+                    onMessage: (message) => {
+                        console.log("Message:", message);
+
+                        if (message.type === "user_transcript") {
+                            elements.userTranscript.textContent = message.text || "Listening...";
+                        }
+
+                        if (message.type === "agent_response") {
+                            elements.agentResponse.textContent = message.text || "Processing...";
+                        }
+                    },
+                    onError: (error) => {
+                        console.error("Agent error:", error);
+                        updateStatus("Error occurred", false);
+                        elements.startBtn.disabled = false;
+                    },
+                    onStatusChange: (status) => {
+                        console.log("Status changed:", status);
+                    },
+                    onModeChange: (mode) => {
+                        console.log("Mode changed:", mode);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Failed to start conversation:", error);
+                updateStatus("Connection failed: " + error.message, false);
+                elements.startBtn.disabled = false;
+            }
+        }
+
+        // End conversation
+        async function endConversation() {
+            try {
+                if (conversation) {
+                    await conversation.endSession();
+                    conversation = null;
                     isRecording = false;
-                    updateButton();
+                    elements.waveform.classList.remove("active");
+                    updateStatus("Disconnected", false);
+                    elements.startBtn.textContent = "🎙️ Start Conversation";
+                    elements.startBtn.classList.remove("recording");
+                    elements.startBtn.disabled = false;
                 }
-            });
-
-            console.log("✅ Conversation initialized");
-            updateStatus("Ready", true);
-        } catch (error) {
-            console.error("Failed to initialize:", error);
-            updateStatus("Connection failed", false);
-        }
-    }
-
-    // Handle messages from agent
-    function handleMessage(message) {
-        console.log("Message received:", message);
-
-        if (message.type === "user_transcript") {
-            elements.userTranscript.textContent = message.text || "Listening...";
-        }
-
-        if (message.type === "agent_response") {
-            elements.agentResponse.textContent = message.text || "Processing...";
-        }
-
-        if (message.type === "start_listening") {
-            updateStatus("Recording", true);
-            elements.waveform.classList.add("active");
-            isRecording = true;
-        }
-
-        if (message.type === "stop_listening") {
-            updateStatus("Connected", true);
-            elements.waveform.classList.remove("active");
-            isRecording = false;
-            updateButton();
-        }
-    }
-
-    // Start/Stop button
-    elements.startBtn.addEventListener("click", async () => {
-        if (!conversation) {
-            await initializeConnection();
-            return;
-        }
-
-        if (!isRecording) {
-            try {
-                await conversation.startSession();
-                isRecording = true;
-                updateButton();
             } catch (error) {
-                console.error("Error starting session:", error);
-                updateStatus("Error", false);
-            }
-        } else {
-            try {
-                await conversation.endSession();
-                isRecording = false;
-                updateButton();
-            } catch (error) {
-                console.error("Error ending session:", error);
+                console.error("Error ending conversation:", error);
             }
         }
-    });
 
-    // Clear button
-    elements.clearBtn.addEventListener("click", () => {
-        elements.userTranscript.textContent = "Waiting for input...";
-        elements.agentResponse.textContent = "Ready to assist";
-    });
+        // Button handler
+        elements.startBtn.addEventListener("click", async () => {
+            if (!isRecording) {
+                await startConversation();
+            } else {
+                await endConversation();
+            }
+        });
 
-    // Update button state
-    function updateButton() {
-        if (isRecording) {
-            elements.startBtn.textContent = "🎙️ Stop Conversation";
-            elements.startBtn.classList.add("recording");
-        } else {
-            elements.startBtn.textContent = "🎙️ Start Conversation";
-            elements.startBtn.classList.remove("recording");
+        // Clear button
+        elements.clearBtn.addEventListener("click", () => {
+            elements.userTranscript.textContent = "Waiting for input...";
+            elements.agentResponse.textContent = "Ready to assist";
+        });
+
+        // Update status
+        function updateStatus(text, connected) {
+            elements.status.textContent = `● ${text}`;
+            if (connected) {
+                elements.status.classList.add("connected");
+                elements.status.classList.remove("recording");
+            } else {
+                elements.status.classList.remove("connected", "recording");
+            }
         }
-    }
 
-    // Update status display
-    function updateStatus(text, connected) {
-        elements.status.textContent = `● ${text}`;
-        if (connected) {
-            elements.status.classList.add("connected");
-            elements.status.classList.remove("recording");
-        } else if (text === "Recording") {
-            elements.status.classList.add("recording");
-            elements.status.classList.remove("connected");
-        } else {
-            elements.status.classList.remove("connected", "recording");
-        }
-    }
-
-    // Initialize on page load
-    window.addEventListener("load", () => {
-        console.log("Page loaded, ready to connect");
-        updateStatus("Ready to connect", false);
-    });
-</script>
+        // Request microphone permission on page load
+        window.addEventListener("load", async () => {
+            try {
+                console.log("Requesting microphone permission...");
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log("✅ Microphone permission granted");
+                updateStatus("Ready to connect", false);
+            } catch (error) {
+                console.error("Microphone permission denied:", error);
+                updateStatus("Please allow microphone access", false);
+            }
+        });
+    </script>
 </body>
 </html>
